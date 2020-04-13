@@ -179,7 +179,8 @@ void Graph::dump()
 Graph* createGridGraph(int size)
 {
     Graph* grid = new Graph();
-    
+   
+    std::cerr << size << "\n";
     for(int i = 0; i < size; i++)
     {
         for(int j = 0; j < size; j++)
@@ -269,10 +270,19 @@ std::vector<int> addTerminal(Graph* grid, int src)
 Graph* createSteinerTree(std::vector<Point>& points)
 {
     std::sort(points.begin(), points.end());
-    Point maxPoint = *(points.end() - 1);
-    int size = std::max(maxPoint.x, maxPoint.y) + 1;
-
     
+    
+    //int size = std::max(maxPoint.x, maxPoint.y) + 1;
+    int size = 0;
+    for(auto& p : points)
+    {
+        if(size < p.x)
+            size = p.x;
+        if(size < p.y)
+            size = p.y;
+    }
+    size++;
+
     Graph* grid = createGridGraph(size);
     auto ps = grid->getPointsId(points);
     
@@ -455,8 +465,7 @@ void OutputGenerator::feed(Graph* g)
             points.push_back({node.x, node.y, PINS_M2});
         if(hmap[node.y][node.x] == 1 && vmap[node.y][node.x] == 1)
             points.push_back({node.x, node.y, M2_M3});
-        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1
-            && !external[i] && node.status == TERM) 
+        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1 && node.status == TERM) 
         {
             points.push_back({node.x, node.y, M2});
             points.push_back({node.x, node.y, M2_M3});
@@ -472,10 +481,11 @@ void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
     {
         if(tmp.find("</net") != std::string::npos)
         {
+            output << "\n";
             for(auto& p : points)
-                output << p << "\n";
+                output << "    " << p << "\n";
             for(auto& s: segments)
-                output << s << "\n";
+                output <<  "    " <<s << "\n";
         }
         output << tmp << "\n";
     }
@@ -504,7 +514,7 @@ int main(int argc, char* argv[])
    
     auto points = parsePoints(input);
     Graph* steiner = createSteinerTree(points);
-    
+    //steiner->dump(); 
     input.clear();
     input.seekg(0);
     std::ofstream output(outName);  
