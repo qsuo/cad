@@ -455,7 +455,8 @@ void OutputGenerator::feed(Graph* g)
             points.push_back({node.x, node.y, PINS_M2});
         if(hmap[node.y][node.x] == 1 && vmap[node.y][node.x] == 1)
             points.push_back({node.x, node.y, M2_M3});
-        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1 && !external[i])
+        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1
+            && !external[i] && node.status == TERM) 
         {
             points.push_back({node.x, node.y, M2});
             points.push_back({node.x, node.y, M2_M3});
