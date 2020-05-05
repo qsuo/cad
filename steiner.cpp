@@ -350,6 +350,14 @@ void OutputGenerator::feed(Graph* g)
     ysz++;
     std::vector< std::vector<int> > vmap(ysz, std::vector<int> (xsz));
     std::vector< std::vector<int> > hmap(ysz, std::vector<int> (xsz));
+    std::vector< std::vector<int> > map(ysz, std::vector<int> (xsz));
+
+    for(auto& node : g->nodes)
+    {
+        if(node.status == TERM)
+            map[node.y][node.x] = 1;
+    }
+
     for(auto& edge : g->edges)
     {
         auto u = g->nodes[edge.u];
@@ -421,21 +429,22 @@ void OutputGenerator::feed(Graph* g)
                 segments.push_back({ {j, start}, {j, end}, M3 });
         }
     }
-
-    for(int i = 0; i < g->nodes.size(); i++)
+    for(int y = 0; y < ysz; y++)
     {
-        auto node = g->nodes[i];
-        if(node.status == TERM)
-            points.push_back({node.x, node.y, PINS_M2});
-        if(hmap[node.y][node.x] == 1 && vmap[node.y][node.x] == 1)
-            points.push_back({node.x, node.y, M2_M3});
-        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1 && node.status == TERM) 
+        for(int x = 0; x < xsz; x++)
         {
-            points.push_back({node.x, node.y, M2});
-            points.push_back({node.x, node.y, M2_M3});
+            if(map[y][x] == 1)
+                points.push_back({x, y, PINS_M2});
+            if(hmap[y][x] == 1 && vmap[y][x] == 1)
+                points.push_back({x, y, M2_M3});
+            if(hmap[y][x] == 0 && vmap[y][x] == 1 && map[y][x] == 1) 
+            {
+                points.push_back({x, y, M2});
+                points.push_back({x, y, M2_M3});
+            }
+   
         }
     }
-
 }
 
 void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
@@ -456,127 +465,6 @@ void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
 
 }
 
-/*
-void OutputGenerator::feed(Graph* g)
-{
-    int xsz = 0;
-    int ysz = 0;
-
-    for(auto& n : g->nodes)
-    {
-        if(xsz < n.x)
-            xsz = n.x;
-        if(ysz < n.y)
-            ysz = n.y;
-    }
-    xsz++;
-    ysz++;
-    std::vector< std::vector<int> > vmap(ysz, std::vector<int> (xsz));
-    std::vector< std::vector<int> > hmap(ysz, std::vector<int> (xsz));
-  
-    for(int node1 = 0; node1 < g->adj.size(); node1++)
-    {
-        for(auto& node2 : g->adj[node1])
-        {
-            if(std::abs(g->nodes[node1].x - g->nodes[node2].x) == 1)
-            {
-                hmap[g->nodes[node1].y][g->nodes[node1].x] = 1;
-                hmap[g->nodes[node2].y][g->nodes[node2].x] = 1;
-            }
-            if(std::abs(g->nodes[node1].y - g->nodes[node2].y) == 1)
-            {
-                vmap[g->nodes[node1].y][g->nodes[node1].x] = 1;
-                vmap[g->nodes[node2].y][g->nodes[node2].x] = 1;
-            }
-        }
-    }
-    
-    for(int i = 0; i < ysz; i++)
-    {
-        for(int j = 0; j < xsz; j++)
-        {
-            int start = j;
-            int end = start;
-            if(hmap[i][j] == 1)
-            {
-                while(hmap[i][j++] == 1)
-                {
-                    end = j - 1;
-                    if(j == xsz)
-                        break;
-                }
-
-            }
-            if(start != end)
-                segments.push_back({ {start, i}, {end, i}, M2 });
-        }
-    }
-     
-    for(int j = 0; j < xsz; j++)
-    {
-        for(int i = 0; i < ysz; i++)
-        {
-            int start = i;
-            int end = start;
-            if(vmap[i][j] == 1)
-            {
-                while(vmap[i++][j] == 1)
-                {
-                    end = i - 1;
-                    if(i == ysz)
-                        break;
-                }
-                
-            }
-            if(start != end)
-                segments.push_back({ {j, start}, {j, end}, M3 });
-        }
-    }
-    
-    std::vector<bool> external(g->size);
-
-    for(auto& segment : segments)
-    {
-        int idx1 = g->find(segment.a);
-        int idx2 = g->find(segment.b);
-        external[idx1] = true;
-        external[idx2] = true;
-    }
-
-    for(int i = 0; i < g->size; i++)
-    {
-        auto node = g->nodes[i];
-        if(node.status == TERM)
-            points.push_back({node.x, node.y, PINS_M2});
-        if(hmap[node.y][node.x] == 1 && vmap[node.y][node.x] == 1)
-            points.push_back({node.x, node.y, M2_M3});
-        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1 && node.status == TERM) 
-        {
-            points.push_back({node.x, node.y, M2});
-            points.push_back({node.x, node.y, M2_M3});
-        }
-    }
-
-}
-
-void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
-{
-    std::string tmp;
-    while(std::getline(input, tmp))
-    {
-        if(tmp.find("</net") != std::string::npos)
-        {
-            output << "\n";
-            for(auto& p : points)
-                output << "    " << p << "\n";
-            for(auto& s: segments)
-                output <<  "    " <<s << "\n";
-        }
-        output << tmp << "\n";
-    }
-
-}
-*/
 
 std::list<Point> findHananPoints(std::vector<Point>& points)
 {
@@ -624,7 +512,7 @@ std::list<Point> findHananPoints(std::vector<Point>& points)
     return hanan;
 }
 
-Graph* createSteiner(std::vector<Point>& points)
+Graph* createSteinerHeavy(std::vector<Point>& points)
 {
     auto hanan = findHananPoints(points);
     Graph temp;
@@ -685,7 +573,7 @@ int main(int argc, char* argv[])
 
 
         
-    auto steiner = createSteiner(points);
+    auto steiner = createSteinerHeavy(points);
     //steiner->dump();
      
     input.clear();
