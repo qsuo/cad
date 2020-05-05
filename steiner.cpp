@@ -26,12 +26,16 @@ enum Type
     PATH
 };
 
-struct Point
+class Point
 {
+public:
     int x;
     int y;
-    
     int status;
+
+    Point(int x_, int y_):x(x_), y(y_){}
+
+    Point(int x_, int y_, int _status):x(x_), y(y_), status(_status) {}
     bool operator==(const Point& that) 
     {
         if(this->x == that.x && this->y == that.y)
@@ -61,13 +65,21 @@ std::ostream& operator<<(std::ostream& os, const Point& point)
     return os;
 }
 
-struct Edge
+class Edge
 {
+public:
     int u;
     int v;
     int weight;
-
+    Edge(int u_, int v_): u(u_), v(v_){}
+    Edge(int u_, int v_, int weight_): u(u_), v(v_), weight(weight_){}
 };
+
+bool comparator(const Edge& e1, const Edge& e2)
+{
+    return (e1.weight < e2.weight);
+}
+
 
 std::vector<Point> parsePoints(std::ifstream& file)
 {
@@ -83,8 +95,8 @@ std::vector<Point> parsePoints(std::ifstream& file)
         {
             int x = std::stoi(match[1]);
             int y = std::stoi(match[2]);
-            Point p = {x, y};
-            points.push_back(p);
+            //Point p = {x, y};
+            points.push_back(Point(x, y, TERM));
         }
    
     }
@@ -92,220 +104,171 @@ std::vector<Point> parsePoints(std::ifstream& file)
     return points;
 }
 
+/*----------------------------------------------------*/
+int dist(Point& a, Point& b)
+{
+    return std::abs(a.x - b.x) + std::abs(a.y - b.y);
+}
+/*----------------------------------------------------*/
+
+/*----------------------------------------------------*/
+class Dsu
+{
+public:
+    Dsu(int n);
+    void makeSet(int x);
+    void unite(int r, int s);
+    int find(int x);
+private:
+    std::vector<int> parents;
+};
+
+Dsu::Dsu(int n)
+{
+    parents.resize(n);
+}
+
+void Dsu::makeSet(int x)
+{
+    parents[x] = x;
+}
+
+int Dsu::find(int x)
+{
+    if(x == parents[x])
+        return x;
+    parents[x] = find(parents[x]);
+    return parents[x];
+}
+
+void Dsu::unite(int a, int b)
+{
+    a = find(a);
+    b = find(b);
+    if(a != b)
+        parents[b] = a;
+}
+/*-----------------------------------------------------*/
+
+
+struct addInfo
+{
+    std::vector<int> edges;
+    int id;
+};
 class Graph
 {
 public:
-    //Graph
-    int addNode(Point point);
-    void addEdge(int i, int j);
+    Graph(std::vector<Point>& points): nodes(points){}
+    Graph() {}
+    int addNode(Point node);
+    int addNodeComplete(Point node);
+    int addEdge(Edge edge);
+    void deleteNode(int info);
     void dump();
-    int find(Point point);
-    std::vector<int> getPointsId(std::vector<Point>& points);
+    Graph* getMst();
 
+    int cost = 0;
     std::vector<Point> nodes;
-    std::vector< std::vector<int> > adj;
-    std::vector<int> terminals;
-    std::set<Point> dupl;
-    int size;
+    std::vector<Edge> edges;
+
 };
-
-int Graph::find(Point point)
-{
-    for(int i = 0; i < nodes.size(); i++)
-        if(nodes[i] == point)
-            return i;
-    return -1;
-}
-
-std::vector<int> Graph::getPointsId(std::vector<Point>& points)
-{
-    std::vector<int> ids;
-    for(auto& p : points)
-    {
-        for(int i = 0; i < nodes.size(); i++)
-        {
-            if(p == nodes[i])
-                ids.push_back(i);
-        }
-    }
-    return ids;
-}
-
-int Graph::addNode(Point point)
-{
-    if(dupl.find(point) == dupl.end())
-    {
-        nodes.push_back(point);
-        adj.push_back(std::vector<int>());
-        size++;
-        dupl.insert(point);
-        return nodes.size() - 1;
-    }
-    else
-    {
-        for(int i = 0; i < nodes.size(); i++)
-            if(nodes[i] == point)
-                return i;
-    }
-}
-
-void Graph::addEdge(int i, int j)
-{
-    adj[i].push_back(j);
-    adj[j].push_back(i);
-}
 
 void Graph::dump()
 {
     for(auto n : nodes)
-        std::cout << n << ": " << n.status << "\n";
+        std::cout << n << "\n";
     std::cout << "\n";
-    
-    std::set< std::pair<int, int> > used;
 
+    
+    for(auto e : edges)
+        std::cout   << nodes[e.u]
+                    << " --- " << nodes[e.v]
+                    << " : " << e.weight << "\n";
+    
+    std::cout << "cost = " << cost << "\n";
+
+}
+
+
+int Graph::addNodeComplete(Point node)
+{
+    int id = nodes.size();
     for(int i = 0; i < nodes.size(); i++)
     {
-        for(auto& n : adj[i])
-        {
-            if(used.find({i, n}) == used.end())
-                std::cout << nodes[i] << "--" << nodes[n] << "\n";
-            used.insert({i, n});
-            used.insert({n, i});
-        }
+        int d = dist(nodes[i], node);
+        edges.push_back(Edge(i, id, d));
     }
-
+    nodes.push_back(node);
+    return id;
 }
 
-Graph* createGridGraph(int size)
+int Graph::addNode(Point node)
 {
-    Graph* grid = new Graph();
-   
-    std::cerr << size << "\n";
-    for(int i = 0; i < size; i++)
-    {
-        for(int j = 0; j < size; j++)
-            grid->addNode({j, i, NONE}); 
-    }
-    
-    for(int i = 0; i < size; i++)
-    {
-        for(int j = 0; j < size; j++)
-        {
-            if(i == 0)
-            {
-                if(j != size - 1)
-                    grid->addEdge(i+j, i+j+1);
-                grid->addEdge(i+j, i+j+size);
-
-            }
-
-            else if(i == size - 1)
-            {
-                if(j != size - 1)
-                    grid->addEdge(i*size+j, i*size+j+1);
-            }
-
-            else
-            {
-                if(j != size - 1)
-                    grid->addEdge(i*size+j, i*size+j+1);
-                grid->addEdge(i*size+j, i*size+j+size);
-
-            }
-            
-        }
-    }
-    
-    return grid;
+    int id = nodes.size();
+    nodes.push_back(node);
+    return id;
 }
 
-std::vector<int> addTerminal(Graph* grid, int src)
+void Graph::deleteNode(int id)
 {
-    std::queue<int> queue;
-    assert(grid->size == grid->nodes.size());
-    std::vector<bool> used(grid->size);
-    std::vector<int> parents(grid->size);
-
-
-    queue.push(src);
-    used[src] = true;
-    parents[src] = -1;
-
-    int dst = -1;
-    while(!queue.empty())
-    {
-        int cur = queue.front();
-        queue.pop();
-        if(grid->nodes[cur].status == TERM || grid->nodes[cur].status == PATH)
-        {
-            dst = cur;
-            break;
-        }
-        for(auto& to : grid->adj[cur])
-        {
-            if(!used[to])
-            {
-                used[to] = true;
-                queue.push(to);
-                parents[to] = cur;
-            }
-        }
-    }
-
-    std::vector<int> path;
-    grid->nodes[src].status = TERM;
-    if(dst != -1)
-    {
-        for(int i = dst; i != -1; i = parents[i])
-        {
-            path.push_back(i);
-            if(grid->nodes[i].status == NONE)
-                grid->nodes[i].status = PATH;
-        }
-    }
-    return path;
+    auto iter = nodes.begin() + id;
     
+    std::vector<int> tmp;
+    
+    for(int i = 0; i < edges.size(); i++)
+    {
+        if(edges[i].u == id || edges[i].v == id)
+            tmp.push_back(i);
+    }
+    
+    for(int i = tmp.size() - 1; i >= 0; i--)
+        edges.erase(edges.begin() + tmp[i]); 
+    
+    nodes.erase(iter);
 }
 
-Graph* createSteinerTree(std::vector<Point>& points)
+
+int Graph::addEdge(Edge edge)
 {
-    std::sort(points.begin(), points.end());
-    
-    
-    //int size = std::max(maxPoint.x, maxPoint.y) + 1;
-    int size = 0;
+    assert(edge.u < nodes.size() && edge.v < nodes.size());
+    int id = edges.size();
+    edges.push_back(edge);
+    return id;
+}
+
+Graph* Graph::getMst()
+{
+    Dsu dsu(nodes.size());
+
+    Graph* g = new Graph(nodes);
+    std::sort(edges.begin(), edges.end(), comparator);
+    for(int i = 0; i < nodes.size(); i++)
+        dsu.makeSet(i);
+
+    for(auto e : edges)
+    {
+        if(dsu.find(e.u) != dsu.find(e.v))
+        {
+            g->cost += e.weight;
+            g->addEdge(e);
+            dsu.unite(e.u, e.v);
+        }
+    }
+
+    return g;
+}
+
+Graph* createMst(std::vector<Point>& points)
+{
+    Graph* g = new Graph();
     for(auto& p : points)
-    {
-        if(size < p.x)
-            size = p.x;
-        if(size < p.y)
-            size = p.y;
-    }
-    size++;
-
-    Graph* grid = createGridGraph(size);
-    auto ps = grid->getPointsId(points);
-    
-
-    Graph* steiner = new Graph();
-    for(auto& p : ps)
-    {
-        auto path = addTerminal(grid, p);
-
-        for(int i = 0; i < path.size(); i++)
-        {
-            int idx1 = steiner->addNode(grid->nodes[path[i]]);
-            int idx2 = steiner->addNode(grid->nodes[path[i-1]]);
-            if(i == 0)
-                continue;
-            steiner->addEdge(idx1, idx2);
-        }
-    } 
-
-    delete grid;
-
-    return steiner;
+        g->addNodeComplete(p);
+    auto mst = g->getMst();
+    delete g;
+    return mst;
 }
+
 
 
 enum Layer
@@ -371,7 +334,129 @@ private:
     std::vector<OutPoint> points;
 };
 
+void OutputGenerator::feed(Graph* g)
+{
+    int xsz = 0;
+    int ysz = 0;
 
+    for(auto& n : g->nodes)
+    {
+        if(xsz < n.x)
+            xsz = n.x;
+        if(ysz < n.y)
+            ysz = n.y;
+    }
+    xsz++;
+    ysz++;
+    std::vector< std::vector<int> > vmap(ysz, std::vector<int> (xsz));
+    std::vector< std::vector<int> > hmap(ysz, std::vector<int> (xsz));
+    for(auto& edge : g->edges)
+    {
+        auto u = g->nodes[edge.u];
+        auto v = g->nodes[edge.v];
+        Point tmp(u.x, v.y);
+
+        int i = u.x;
+        if(u.x < v.x)
+            for(int i = u.x; i <= v.x; i++)
+                hmap[u.y][i] = 1;
+        else if(u.x > v.x)
+            for(int i = u.x; i >= v.x; i--)
+                hmap[u.y][i] = 1;
+
+        if(u.y < v.y)
+            for(int i = u.y; i <= v.y; i++)
+                vmap[i][v.x] = 1;
+        else if(u.y > v.y)
+            for(int i = u.y; i >= v.y; i--)
+                vmap[i][v.x] = 1;
+    }
+
+    /*
+    for(int i = 0; i < ysz; i++)
+    {
+        for(int j = 0; j < xsz; j++)
+            std::cerr << vmap[i][j] << " ";
+        std::cerr << "\n";
+    }
+    */
+    for(int i = 0; i < ysz; i++)
+    {
+        for(int j = 0; j < xsz; j++)
+        {
+            int start = j;
+            int end = start;
+            if(hmap[i][j] == 1)
+            {
+                while(hmap[i][j++] == 1)
+                {
+                    end = j - 1;
+                    if(j == xsz)
+                        break;
+                }
+
+            }
+            if(start != end)
+                segments.push_back({ {start, i}, {end, i}, M2 });
+        }
+    }
+    
+    for(int j = 0; j < xsz; j++)
+    {
+        for(int i = 0; i < ysz; i++)
+        {
+            int start = i;
+            int end = start;
+            if(vmap[i][j] == 1)
+            {
+                while(vmap[i++][j] == 1)
+                {
+                    end = i - 1;
+                    if(i == ysz)
+                        break;
+                }
+                
+            }
+            if(start != end)
+                segments.push_back({ {j, start}, {j, end}, M3 });
+        }
+    }
+
+    for(int i = 0; i < g->nodes.size(); i++)
+    {
+        auto node = g->nodes[i];
+        if(node.status == TERM)
+            points.push_back({node.x, node.y, PINS_M2});
+        if(hmap[node.y][node.x] == 1 && vmap[node.y][node.x] == 1)
+            points.push_back({node.x, node.y, M2_M3});
+        if(hmap[node.y][node.x] == 0 && vmap[node.y][node.x] == 1 && node.status == TERM) 
+        {
+            points.push_back({node.x, node.y, M2});
+            points.push_back({node.x, node.y, M2_M3});
+        }
+    }
+
+}
+
+void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
+{
+    std::string tmp;
+    while(std::getline(input, tmp))
+    {
+        if(tmp.find("</net") != std::string::npos)
+        {
+            output << "\n";
+            for(auto& p : points)
+                output << "    " << p << "\n";
+            for(auto& s: segments)
+                output <<  "    " <<s << "\n";
+        }
+        output << tmp << "\n";
+    }
+
+}
+
+/*
 void OutputGenerator::feed(Graph* g)
 {
     int xsz = 0;
@@ -491,6 +576,91 @@ void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
     }
 
 }
+*/
+
+std::list<Point> findHananPoints(std::vector<Point>& points)
+{
+    int xsize = 0;
+    int ysize = 0;
+    for(auto& p : points)
+    {
+        if(xsize < p.x)
+            xsize = p.x;
+        if(ysize < p.y)
+            ysize = p.y;
+    }
+    xsize++;
+    ysize++;
+
+    std::list<Point> hanan;
+    std::vector< std::vector<int> > map(ysize, std::vector<int> (xsize));
+
+    for(auto& p : points)
+    {
+        for(int x = 0; x < map[p.y].size(); x++)
+        {
+            if(map[p.y][x] != 2)
+                map[p.y][x] += 1;
+        }
+
+        for(int y = 0; y < map.size(); y++)
+        {
+            if(map[y][p.x] != 2)
+                map[y][p.x] += 1;
+        }
+    }
+    for(auto& p : points)
+        map[p.y][p.x] = 0; 
+
+    for(int y = 0; y < map.size(); y++)
+    {
+        for(int x = 0; x < map[0].size(); x++)
+        {
+            if(map[y][x] == 2)
+                hanan.push_back(Point(x, y));
+        }
+    }
+    
+    return hanan;
+}
+
+Graph* createSteiner(std::vector<Point>& points)
+{
+    auto hanan = findHananPoints(points);
+    Graph temp;
+    for(auto& p : points)
+        temp.addNodeComplete(p);
+
+    while(true)
+    {
+        int maxDelta = 0;
+        auto optimal = hanan.end();
+
+        auto init = temp.getMst();
+        //init->dump();
+        for(auto it = hanan.begin(); it != hanan.end(); it++)
+        {
+            auto info = temp.addNodeComplete(*(it));
+            auto mst = temp.getMst();
+            auto delta = init->cost - mst->cost;
+            //std::cerr << delta << "\n";
+            if(delta > maxDelta)
+            {
+                maxDelta = delta;
+                optimal = it;
+            }
+            delete mst;
+            temp.deleteNode(info);
+        }
+        delete init;
+        if(optimal == hanan.end())
+            break;
+        hanan.erase(optimal);
+        temp.addNodeComplete(*(optimal));
+    }
+    auto mst = temp.getMst();
+    return mst;
+}
 
 int main(int argc, char* argv[])
 {   
@@ -511,10 +681,13 @@ int main(int argc, char* argv[])
     outName.replace(outName.begin() + outName.find(".xml"),
                     outName.end(), "_out.xml");
 
-   
     auto points = parsePoints(input);
-    Graph* steiner = createSteinerTree(points);
-    //steiner->dump(); 
+
+
+        
+    auto steiner = createSteiner(points);
+    //steiner->dump();
+     
     input.clear();
     input.seekg(0);
     std::ofstream output(outName);  
@@ -524,6 +697,7 @@ int main(int argc, char* argv[])
     generator.generate(input, output);
 
     delete  steiner;
+    
     return 0;
 }
 
