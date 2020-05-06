@@ -17,7 +17,11 @@
 #include <queue>
 #include <utility>
 #include <algorithm>
+#include <signal.h>
 
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 enum Type
 {
@@ -328,14 +332,17 @@ class OutputGenerator
 {
 public:
     void feed(Graph* g); 
-    void generate(std::ifstream& input, std::ofstream& output);
+    void generate(std::string inName, std::string outName);
 private:
     std::vector<Segment> segments;
     std::vector<OutPoint> points;
+    int cost;
 };
 
 void OutputGenerator::feed(Graph* g)
 {
+    segments.clear();
+    points.clear();
     int xsz = 0;
     int ysz = 0;
 
@@ -445,10 +452,14 @@ void OutputGenerator::feed(Graph* g)
    
         }
     }
+    cost = g->cost;
 }
 
-void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
+void OutputGenerator::generate(std::string inName, std::string outName)
 {
+
+    std::ifstream input(inName);
+    std::ofstream output(outName);
     std::string tmp;
     while(std::getline(input, tmp))
     {
@@ -462,7 +473,8 @@ void OutputGenerator::generate(std::ifstream& input, std::ofstream& output)
         }
         output << tmp << "\n";
     }
-
+    input.close();
+    output.close();
 }
 
 
@@ -512,7 +524,7 @@ std::list<Point> findHananPoints(std::vector<Point>& points)
     return hanan;
 }
 
-Graph* createSteinerHeavy(std::vector<Point>& points)
+Graph* createSteinerOptimal(std::vector<Point>& points)
 {
     auto hanan = findHananPoints(points);
     Graph temp;
@@ -550,6 +562,41 @@ Graph* createSteinerHeavy(std::vector<Point>& points)
     return mst;
 }
 
+Graph* createSteiner(std::vector<Point>& points)
+{
+    std::sort(points.begin(), points.end());
+    Graph temp;
+    std::vector<Point> used;
+    for(auto& point : points)
+    {
+        auto hanan = findHananPoints(used);
+        unsigned int min = -1;
+        unsigned int termMin = -1;
+        if(used.size() > 0)
+        {
+            termMin = dist(point, used[used.size()-1]);
+            min = termMin;
+        }
+        auto x = point;
+        for(auto& h : hanan)
+        {
+            unsigned int d = dist(point, h);
+            if(d < min)
+            {
+                min = d;
+                x = h;
+            }
+        }
+        if(min != termMin)
+            used.push_back(x);
+
+        used.push_back(point);
+    }
+    for(auto& point : used)
+        temp.addNodeComplete(point);
+    return temp.getMst();
+}
+
 int main(int argc, char* argv[])
 {   
     if(argc == 1)
@@ -570,22 +617,30 @@ int main(int argc, char* argv[])
                     outName.end(), "_out.xml");
 
     auto points = parsePoints(input);
-
-
-        
-    auto steiner = createSteinerHeavy(points);
-    //steiner->dump();
-     
-    input.clear();
-    input.seekg(0);
-    std::ofstream output(outName);  
-
+    input.close();
     OutputGenerator generator;
-    generator.feed(steiner);
-    generator.generate(input, output);
 
-    delete  steiner;
-    
+    auto steiner = createSteiner(points);
+    generator.feed(steiner);
+    generator.generate(inName, outName);
+    delete steiner;
+    auto pid = fork();
+    if(pid == 0)
+    {
+        signal(SIGALRM, exit);
+        alarm(60);
+        auto steinerOpt = createSteinerOptimal(points);
+        generator.feed(steinerOpt);
+        generator.generate(inName, outName);
+        delete steinerOpt;
+        return 0;
+    }
+    else
+    {
+        int status = 0;
+        wait(&status);
+    }
+
     return 0;
 }
 
